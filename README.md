@@ -1,20 +1,36 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Peloton Legends
 
-# Run and deploy your AI Studio app
+The ultimate professional road cycling collector's album: discover, collect, and trade cards of the world's greatest riders. Built with **Vite**, **React 19**, **TypeScript**, and **Tailwind CSS**.
 
-This contains everything you need to run your app locally.
+## Run locally
 
-View your app in AI Studio: https://ai.studio/apps/dc94c17b-fc5b-4f3b-ad90-c8a858926b1f
-
-## Run Locally
-
-**Prerequisites:**  Node.js
-
+**Prerequisites:** [Node.js](https://nodejs.org/) 20+ (CI uses 22).
 
 1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+
+   ```bash
+   npm install
+   ```
+
+2. Optional: copy [`.env.example`](.env.example) to `.env` or `.env.local` if you add Gemini or other env-based features later.
+
+3. Start the dev server:
+
+   ```bash
+   npm run dev
+   ```
+
+   The app is configured to listen on port **3000** (see `package.json` `dev` script).
+
+## Scripts
+
+| Command        | Description              |
+| -------------- | ------------------------ |
+| `npm run dev`  | Start Vite dev server    |
+| `npm run build`| Production build to `dist` |
+| `npm run preview` | Preview production build |
+| `npm run lint` | Typecheck (`tsc --noEmit`) |
+
+## License
+
+Private project; all rights reserved unless you add a license file.

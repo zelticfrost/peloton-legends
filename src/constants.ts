@@ -1,4 +1,4 @@
-import { Card, RiderType, Specialty } from "./types";
+import { Card, Quest, RiderType, Specialty } from "./types";
 
 export const TEAMS = [
   "UAE Team Emirates", "Team Visma | Lease a Bike", "Alpecin-Deceuninck", 
@@ -231,7 +231,7 @@ const generateCards = (count: number): Card[] => {
 
 export const MOCK_CARDS = generateCards(200);
 
-export const INITIAL_QUESTS = [
+export const INITIAL_QUESTS: Quest[] = [
   {
     id: "q1",
     title: "Pack Opener",
@@ -272,6 +272,6 @@ export const INITIAL_QUESTS = [
     status: "ACTIVE",
     icon: "Sparkles",
   },
-] as const;
+];
 
 

@@ -1,7 +1,7 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Card } from "./components/Card";
-import { MOCK_CARDS, TEAMS, INITIAL_QUESTS } from "./constants";
+import { MOCK_CARDS, TEAMS } from "./constants";
 import { Card as CardType, RiderType, UserCard, TradeOffer, Quest } from "./types";
 import { getFlagUrl } from "./lib/flags";
 import { 
@@ -31,39 +31,40 @@ import {
   Moon
 } from "lucide-react";
 import { Button, Badge, Modal, ProgressBar, Input, Select } from "./components/design-system";
-
-type SortKey = "NAME" | "RARITY" | "DATE" | "TEAM";
-type SortOrder = "ASC" | "DESC";
-
-const RARITY_PRIORITY: Record<string, number> = {
-  "COMMON": 1,
-  "UNCOMMON": 2,
-  "RARE": 3,
-  "LEGENDARY": 4
-};
-
-
+import { NavItem } from "./components/layout/NavItem";
+import { filterAndSortGrouped, groupCollectionByCardId, type SortKey, type SortOrder } from "./game/collectionView";
+import {
+  getHydratedInitialState,
+  persistGameState,
+  type ActiveTab,
+  type TradingSubTab,
+} from "./persistence/gameStatePersistence";
 
 export default function App() {
-  const [collection, setCollection] = useState<UserCard[]>(
-    MOCK_CARDS.slice(0, 3).map(c => ({ ...c, instanceId: Math.random().toString(36), acquiredAt: Date.now() }))
-  );
+  const seedRef = useRef<ReturnType<typeof getHydratedInitialState> | null>(null);
+  if (seedRef.current === null) {
+    seedRef.current = getHydratedInitialState();
+  }
+  const seed = seedRef.current;
+
+  const [collection, setCollection] = useState<UserCard[]>(() => [...seed.collection]);
   const [selectedCard, setSelectedCard] = useState<UserCard | null>(null);
-  const [filter, setFilter] = useState<RiderType | "ALL">("ALL");
-  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<RiderType | "ALL">(() => seed.filter);
+  const [search, setSearch] = useState(() => seed.search);
   const [isOpeningPack, setIsOpeningPack] = useState(false);
   const [newCard, setNewCard] = useState<UserCard | null>(null);
-  const [activeTab, setActiveTab] = useState<"COLLECTION" | "TRADING" | "TEAMS" | "HALL_OF_FAME" | "QUESTS">("COLLECTION");
-  const [tradingSubTab, setTradingSubTab] = useState<"MARKET" | "OFFERS">("MARKET");
-  const [activeTrades, setActiveTrades] = useState<UserCard[]>([]);
-  const [tradeOffers, setTradeOffers] = useState<TradeOffer[]>([]);
+  const [activeTab, setActiveTab] = useState<ActiveTab>(() => seed.activeTab);
+  const [tradingSubTab, setTradingSubTab] = useState<TradingSubTab>(() => seed.tradingSubTab);
+  const [activeTrades, setActiveTrades] = useState<UserCard[]>(() => [...seed.activeTrades]);
+  const [tradeOffers, setTradeOffers] = useState<TradeOffer[]>(() =>
+    seed.tradeOffers.map((o) => ({ ...o, offeredCard: { ...o.offeredCard } })),
+  );
   const [targetTradeCard, setTargetTradeCard] = useState<CardType | null>(null);
-  const [quests, setQuests] = useState<Quest[]>(INITIAL_QUESTS as unknown as Quest[]);
-  const [sortConfig, setSortConfig] = useState<{ key: SortKey; order: SortOrder }>({
-    key: "DATE",
-    order: "DESC"
-  });
-  const [theme, setTheme] = useState<"light" | "dark">("dark");
+  const [quests, setQuests] = useState<Quest[]>(() => seed.quests.map((q) => ({ ...q })));
+  const [sortConfig, setSortConfig] = useState<{ key: SortKey; order: SortOrder }>(() => ({
+    ...seed.sortConfig,
+  }));
+  const [theme, setTheme] = useState<"light" | "dark">(() => seed.theme);
 
   useEffect(() => {
     if (theme === "dark") {
@@ -73,45 +74,41 @@ export default function App() {
     }
   }, [theme]);
 
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      persistGameState({
+        collection,
+        quests,
+        activeTrades,
+        tradeOffers,
+        theme,
+        sortConfig,
+        filter,
+        search,
+        activeTab,
+        tradingSubTab,
+      });
+    }, 300);
+    return () => window.clearTimeout(id);
+  }, [
+    collection,
+    quests,
+    activeTrades,
+    tradeOffers,
+    theme,
+    sortConfig,
+    filter,
+    search,
+    activeTab,
+    tradingSubTab,
+  ]);
 
-  // Group collection by card ID for the grid view
-  const groupedCollection = useMemo(() => collection.reduce((acc, card) => {
-    if (!acc[card.id]) {
-      acc[card.id] = { card, quantity: 0 };
-    }
-    acc[card.id].quantity += 1;
-    return acc;
-  }, {} as Record<string, { card: UserCard; quantity: number }>), [collection]);
+  const groupedCollection = useMemo(() => groupCollectionByCardId(collection), [collection]);
 
-  const filteredCards = useMemo(() => Object.values(groupedCollection)
-    .filter(({ card }) => {
-      const matchesFilter = filter === "ALL" || card.type === filter;
-      const matchesSearch = card.name.toLowerCase().includes(search.toLowerCase()) || 
-                           card.team.toLowerCase().includes(search.toLowerCase());
-      return matchesFilter && matchesSearch;
-    })
-    .sort((a, b) => {
-      const cardA = (a as { card: UserCard; quantity: number }).card;
-      const cardB = (b as { card: UserCard; quantity: number }).card;
-      let comparison = 0;
-
-      switch (sortConfig.key) {
-        case "NAME":
-          comparison = cardA.name.localeCompare(cardB.name);
-          break;
-        case "RARITY":
-          comparison = RARITY_PRIORITY[cardA.rarity] - RARITY_PRIORITY[cardB.rarity];
-          break;
-        case "DATE":
-          comparison = cardA.acquiredAt - cardB.acquiredAt;
-          break;
-        case "TEAM":
-          comparison = cardA.team.localeCompare(cardB.team);
-          break;
-      }
-
-      return sortConfig.order === "ASC" ? comparison : -comparison;
-    }), [groupedCollection, filter, search, sortConfig]);
+  const filteredCards = useMemo(
+    () => filterAndSortGrouped(groupedCollection, filter, search, sortConfig),
+    [groupedCollection, filter, search, sortConfig],
+  );
 
   const updateQuestProgress = (questId: string, amount: number = 1, absolute: boolean = false) => {
     setQuests(prev => {
@@ -1486,28 +1483,4 @@ export default function App() {
     </div>
   );
 }
-
-function NavItem({ icon: Icon, label, active = false, onClick, badge }: { icon: any, label: string, active?: boolean, onClick?: () => void, badge?: number }) {
-  return (
-    <button 
-      onClick={onClick}
-      className={`relative flex items-center gap-3 px-4 py-3 rounded-xl transition-all w-full text-left group ${
-        active ? "bg-brand-primary text-black font-bold shadow-lg shadow-brand-primary/20" : "text-text-secondary hover:text-text-primary hover:bg-slate-100 dark:hover:bg-white/5"
-      }`}
-    >
-      <Icon className={`w-5 h-5 ${active ? "text-black" : "text-text-secondary group-hover:text-brand-primary"} transition-colors`} />
-      <span className="text-sm">{label}</span>
-      {badge !== undefined && badge > 0 && (
-        <span className={`absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
-          active ? "bg-black text-brand-primary" : "bg-brand-primary text-black shadow-lg shadow-brand-primary/40"
-        }`}>
-          {badge}
-        </span>
-      )}
-    </button>
-  );
-}
-
-
-
 
